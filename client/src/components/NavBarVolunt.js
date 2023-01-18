@@ -27,11 +27,6 @@ function NavBarVolunt(props) {
                 <p className="sub-btn-NavBar">Talleres</p>
                 <div className="over-btn" id="over-btn-talleres"></div>
             </div>
-            <div className="btn-NavBar" onClick={(e)=>{navigate(`/agenda/${user.id}`)}}>
-                <FontAwesomeIcon icon={faCalendar} />
-                <p className="sub-btn-NavBar">Agenda</p>
-                <div className="over-btn" id="over-btn-tareas"></div>
-            </div>
 
     </div></div>)
 }

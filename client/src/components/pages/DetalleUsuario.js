@@ -28,7 +28,7 @@ function DetalleUsuario() {
             }
         }
         getUserData();
-    },[])
+    })
 
     useEffect(() => {
         async function formarInterests() {
@@ -71,6 +71,9 @@ function DetalleUsuario() {
         console.log("calldata",callData.id)
         setCall_id(callData.id)
     }
+    const handleVisit = async()=>{
+        await fetch(`/resetStrikes/${id}`)
+    }
 
     return (<div className="Home">
         {show && <ReportOverlay setShow={setShow} id={id} />}
@@ -83,7 +86,7 @@ function DetalleUsuario() {
             </div>
             <div className="user-functions">
                 <button className="centrado" onClick={handleShow}>REPORTAR</button>
-                <button className="centrado">VISITA</button>
+                <button className="centrado" onClick={handleVisit}>VISITA</button>
                 <a href={`tel:${userData.phone_number}`}onClick={handleShowResume}><button className="centrado" >LLAMAR</button></a>
             </div>
             <div className="detail-group">

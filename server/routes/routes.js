@@ -4,6 +4,7 @@ const user = require("../controllers/users.controllers");
 const volunteer = require('../controllers/volunteers.controllers')
 const events = require("../controllers/events.controllers")
 const calls = require("../controllers/calls.controllers")
+const reports = require("../controllers/reports.controllers")
 
 //USER
 
@@ -26,6 +27,12 @@ router.get("/getLogged", volunteer.getLogged)
 //TICKETS
 
 router.post("/newTicket", ticket.insert)
+router.get("/getTickets", ticket.getAll)
+
+//REPORTS
+
+router.post("/newReport", reports.insert )
+router.get("/getReports", reports.getAll)
 
 //EVENTS
 
