@@ -1,6 +1,5 @@
-import { useContext } from "react";
+
 import { useNavigate } from "react-router-dom";
-import ViewContext from "../context/UserContext";
 
 function CardEvento(props) {
 

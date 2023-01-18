@@ -1,30 +1,138 @@
-pool:
-  name: Azure Pipelines
-  demands: npm
+# Node.js with React
+# Build a Node.js project that uses React.
+# Add steps that analyze code, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/javascript
 
-steps:
-- task: CopyFiles@2
-  displayName: 'Copy Files to:  $(build.artifactstagingdirectory)/Templates'
-  inputs:
-    SourceFolder: deployment
-    Contents: '*.json'
-    TargetFolder: ' $(build.artifactstagingdirectory)/Templates'
+trigger:
+- master
 
-- task: Npm@1
-  displayName: 'npm custom'
-  inputs:
-    command: custom
-    verbose: false
-    customCommand: 'install --production'
+variables:
+  # Subscription needs a storage account and a website
+  azureSubscription: 'Azure subscription 1(129d75c6-850d-46d0-b055-1534c2cd6553)'
 
-- task: ArchiveFiles@2
-  displayName: 'Archive $(Build.SourcesDirectory)'
-  inputs:
-    rootFolderOrFile: '$(Build.SourcesDirectory)'
-    includeRootFolder: false
-    archiveFile: '$(Build.ArtifactStagingDirectory)/ContosoAir-$(Build.BuildId).zip'
+  # Needs to be a linux app service and there are a bunch of env variables that need to be set on it
+  serverWebAppName: 'SoledadNoDeseada-testing'
 
-- task: PublishBuildArtifacts@1
-  displayName: 'Publish Artifact: drop'
+  # This needs to have a static website setup with the default container ($web)
+  clientBlobAccountName: './client'
 
+  # This is provided to the client app so it knows how to hit the right server
+  serverUrl: 'https://soledadnodeseada-testing.azurewebsites.net'
 
+  # We build on linux to remove any dependencies on windows stuff / can move to GCP or AWS
+  vmImageName: 'ubuntu-latest'
+  
+  ConnectionType: 'AzureRM'
+
+#pool:
+  #vmImage: ubuntu-latest
+
+stages:
+  - stage: Build
+    displayName: Build stage
+    jobs:
+      - job: Build
+        displayName: Build
+        pool:
+          vmImage: $(vmImageName)
+
+        steps:
+        - task: NodeTool@0
+          inputs:
+            versionSpec: '18.x'
+          displayName: 'Install Node.js'
+
+        - script: |
+            npm install
+          displayName: 'npm install Server'
+          workingDirectory: '$(Build.SourcesDirectory)/server'
+          
+        - script: |
+            npm install
+          displayName: 'npm install Client'
+          workingDirectory: '$(Build.SourcesDirectory)/client'
+          
+        - task: CopyFiles@2
+          inputs:
+            sourceFolder: '$(System.DefaultWorkingDirectory)'
+            contents: '$(System.DefaultWorkingDirectory)/server/**'
+            targetFolder: '$(Build.ArtifactStagingDirectory)/npm'
+          displayName: 'Copy npm package json server'
+          
+        - task: CopyFiles@2
+          inputs:
+            sourceFolder: '$(System.DefaultWorkingDirectory)'
+            contents: '$(System.DefaultWorkingDirectory)/client/**'
+            targetFolder: '$(Build.ArtifactStagingDirectory)/npm'
+          displayName: 'Copy npm package json client'
+          
+        - task: ArchiveFiles@2
+          displayName: 'Archive files'
+          inputs:
+            rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/npm'
+            includeRootFolder: false
+            archiveType: zip
+            archiveFile: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
+            replaceExistingArchive: true
+
+        - task: PublishPipelineArtifact@0
+          displayName: 'Publish server pipeline artifacts'
+          inputs:
+            targetPath: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
+
+  - stage: Deploy
+    displayName: Deploy stage
+    dependsOn: Build
+    condition: succeeded()
+    jobs:
+      - deployment: Deploy
+        displayName: Deploy Production
+        environment: 'production'
+        pool:
+          vmImage: $(vmImageName)
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: DownloadPipelineArtifact@1
+                  displayName: 'Download Pipeline Artifacts'
+                  inputs:
+                    buildType: 'current'
+                    
+                - task: ExtractFiles@1
+                  inputs:
+                    archiveFilePatterns: '$(System.ArtifactsDirectory)/drop/$(Build.BuildId).zip'
+                    destinationFolder: '$(System.DefaultWorkingDirectory)/unzip/$(Build.BuildId)'
+                    cleanDestinationFolder: true
+
+                #- task: AzureCLI@2
+                   #inputs:
+                    #azureSubscription: '$(azureSubscription)'
+                    #scriptType: 'bash'
+                    #scriptLocation: 'inlineScript'
+                    #inlineScript: 'az storage blob upload-batch -d "\$web" --account-name "$(clientBlobAccountName)" -s "$(System.DefaultWorkingDirectory)/unzip/$(Build.BuildId)/client/build"'
+                    
+                - task: AzureRmWebAppDeployment@4
+                  inputs:
+                    ConnectionType: 'AzureRM'
+                    azureSubscription: '$(azureSubscription)'
+                    appType: 'webAppLinux'
+                    WebAppName: '$(serverWebAppName)'
+                    packageForLinux: '$(System.ArtifactsDirectory)/drop/$(Build.BuildId).zip'
+                    #RuntimeStack: 'NODE|10.16'
+                    RuntimeStack: 'NODE|18.x'
+                    #StartupCommand: 'cd server && node dist/index.js'
+                    StartupCommand: 'cd server && node client/index.js'
+                    ScriptType: 'Inline Script'
+                    InlineScript: |
+                      cd server
+                      npm install
+                      
+#- task: AzureRmWebAppDeployment@4
+  #inputs:
+    #ConnectionType: 'AzureRM'
+    #azureSubscription: 'Azure subscription 1(129d75c6-850d-46d0-b055-1534c2cd6553)'
+    #appType: 'webAppLinux'
+    #WebAppName: 'soledadnodeseada-testing'
+    #packageForLinux: '$(System.DefaultWorkingDirectory)/**/*.zip'
+    #RuntimeStack: 'NODE|18-lts'
